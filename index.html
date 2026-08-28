@@ -329,6 +329,7 @@
       cursor: pointer;
       transition: all 0.3s ease;
       text-align: center;
+      user-select: none;
     }
 
     .btn:hover {
@@ -336,10 +337,30 @@
       box-shadow: 0 5px 20px var(--glow);
     }
 
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 10px var(--glow);
+      filter: brightness(0.95);
+    }
+
     .btn-secondary {
       background: transparent;
       color: var(--accent-gold);
       border: 1px solid var(--accent-gold);
+    }
+
+    .btn-secondary:active {
+      background: rgba(245, 166, 35, 0.1);
+    }
+
+    .btn-clicked {
+      animation: btnPulse 0.3s ease;
+    }
+
+    @keyframes btnPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.95); }
+      100% { transform: scale(1); }
     }
 
     .btn-group {
@@ -679,17 +700,19 @@ h_l = Σ_i α_i→l · v_i</code></pre>
               <input type="range" id="importanceSlider" min="0" max="100" value="70">
             </div>
             <div class="btn-group" style="margin-top: 1.5rem;">
-              <button class="btn" onclick="runSimulation()">运行模拟</button>
-              <button class="btn btn-secondary" onclick="toggleMode()" id="modeBtn">切换模式: AttnRes</button>
+              <button class="btn" id="runSimBtn">运行模拟</button>
+              <button class="btn btn-secondary" id="modeBtn">切换模式: AttnRes</button>
             </div>
           </div>
 
           <div class="card">
-            <h3>信息检索权重</h3>
-            <div id="weightBars"></div>
+            <h3>信息检索权重分布</h3>
+            <div style="position: relative;">
+              <canvas id="weightCanvas" width="500" height="60" style="width: 100%; height: 60px; border-radius: 0.5rem;"></canvas>
+              <div id="weightTooltip" style="position: absolute; display: none; background: var(--bg-primary); border: 1px solid var(--border); padding: 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; pointer-events: none; z-index: 10;"></div>
+            </div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 1rem;">
-              AttnRes 模式下，深层会自动给浅层更高的注意力权重；
-              标准残差模式下，权重均匀分布（每层 1/N）。
+              每一列代表一层，高度表示 AttnRes 对该层的注意力权重。Standard 模式下所有列等高等低；AttnRes 模式下深层会重点关注浅层。
             </p>
           </div>
         </div>
@@ -897,6 +920,29 @@ h_l = Σ_i α_i→l · v_i</code></pre>
     const canvas = $('demoCanvas');
     const ctx = canvas.getContext('2d');
 
+    // Use event listeners for better reliability
+    const runBtn = $('runSimBtn');
+    const modeBtn = $('modeBtn');
+    
+    if (runBtn) {
+      runBtn.addEventListener('click', () => {
+        runBtn.classList.add('btn-clicked');
+        setTimeout(() => runBtn.classList.remove('btn-clicked'), 300);
+        runSimulation();
+      });
+    }
+    
+    if (modeBtn) {
+      modeBtn.addEventListener('click', () => {
+        modeBtn.classList.add('btn-clicked');
+        setTimeout(() => modeBtn.classList.remove('btn-clicked'), 300);
+        toggleMode();
+      });
+    }
+
+    // Remove old inline onclick handlers by updating the HTML
+    // (The onclick attributes will be ignored since we're using event listeners)
+
     function toggleMode() {
       simMode = simMode === 'attnres' ? 'standard' : 'attnres';
       $('modeBtn').textContent = '切换模式: ' + (simMode === 'attnres' ? 'AttnRes' : 'Standard');
@@ -967,49 +1013,134 @@ h_l = Σ_i α_i→l · v_i</code></pre>
 
       // Update weight bars
       updateWeightBars(depth, importance);
+      
+      // Store weights for tooltip
+      const weightCanvas = $('weightCanvas');
+      if (weightCanvas) {
+        weightCanvas._weights = [];
+        if (simMode === 'standard') {
+          const w = 1 / depth;
+          for (let i = 0; i < depth; i++) weightCanvas._weights.push(w);
+        } else {
+          const deepIdx = depth - 1;
+          for (let i = 0; i < depth; i++) {
+            const dist = Math.abs(i - deepIdx);
+            let weight;
+            if (i === deepIdx) {
+              weight = 0.3;
+            } else {
+              weight = Math.max(0.05, importance * (1 - dist / depth));
+            }
+            weightCanvas._weights.push(weight);
+          }
+        }
+      }
     }
 
     function updateWeightBars(depth, importance) {
-      const container = $('weightBars');
-      container.innerHTML = '';
-
+      const canvas = $('weightCanvas');
+      const tooltip = $('weightTooltip');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set canvas size for sharp rendering
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = 60 * dpr;
+      ctx.scale(dpr, dpr);
+      
+      const width = rect.width;
+      const height = 60;
+      
+      ctx.clearRect(0, 0, width, height);
+      
+      // Background
+      ctx.fillStyle = '#1e1b18';
+      ctx.fillRect(0, 0, width, height);
+      
       if (simMode === 'standard') {
-        const weight = (1 / depth * 100).toFixed(1);
+        // Standard: uniform weights, very low bars
+        const barWidth = width / depth;
+        const barHeight = 4;
+        const y = height - 10;
+        
         for (let i = 0; i < depth; i++) {
-          const row = document.createElement('div');
-          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin: 4px 0;';
-          row.innerHTML = `
-            <span style="width: 30px; font-size: 0.8rem; color: var(--text-secondary);">L${i + 1}</span>
-            <div style="flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-              <div style="width: ${weight}%; height: 100%; background: var(--accent-gold);"></div>
-            </div>
-            <span style="width: 40px; font-size: 0.8rem; color: var(--accent-gold);">${weight}%</span>
-          `;
-          container.appendChild(row);
+          const x = i * barWidth;
+          ctx.fillStyle = 'rgba(245, 166, 35, 0.5)';
+          ctx.fillRect(x, y - barHeight, Math.max(1, barWidth - 1), barHeight);
         }
       } else {
+        // AttnRes: varying weights based on distance from deep layer
         const deepIdx = depth - 1;
+        const barWidth = width / depth;
+        const maxBarHeight = height - 20;
+        const baseY = height - 10;
+        
         for (let i = 0; i < depth; i++) {
           const dist = Math.abs(i - deepIdx);
           let weight;
           if (i === deepIdx) {
-            weight = 30;
+            weight = 0.3;
           } else {
-            weight = Math.max(5, importance * 100 * (1 - dist / depth));
+            weight = Math.max(0.05, importance * (1 - dist / depth));
           }
-          const row = document.createElement('div');
-          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin: 4px 0;';
-          row.innerHTML = `
-            <span style="width: 30px; font-size: 0.8rem; color: var(--text-secondary);">L${i + 1}</span>
-            <div style="flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-              <div style="width: ${weight}%; height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-orange));"></div>
-            </div>
-            <span style="width: 40px; font-size: 0.8rem; color: var(--accent-gold);">${weight.toFixed(0)}%</span>
-          `;
-          container.appendChild(row);
+          
+          const barHeight = Math.max(2, weight * maxBarHeight);
+          const x = i * barWidth;
+          
+          // Gradient from gold to orange based on weight
+          const alpha = 0.4 + weight * 0.6;
+          if (weight > 0.5) {
+            ctx.fillStyle = `rgba(245, 166, 35, ${alpha})`;
+          } else if (weight > 0.2) {
+            ctx.fillStyle = `rgba(232, 126, 61, ${alpha})`;
+          } else {
+            ctx.fillStyle = `rgba(212, 120, 60, ${alpha * 0.7})`;
+          }
+          
+          ctx.fillRect(x, baseY - barHeight, Math.max(1, barWidth - 1), barHeight);
         }
       }
+      
+      // Store weights for tooltip
+      canvas._weights = [];
+      canvas._depth = depth;
+      canvas._importance = importance;
+      canvas._simMode = simMode;
     }
+    
+    // Add tooltip interaction for weight canvas
+    document.addEventListener('DOMContentLoaded', () => {
+      const weightCanvas = $('weightCanvas');
+      if (weightCanvas) {
+        weightCanvas.addEventListener('mousemove', (e) => {
+          if (!weightCanvas._weights) return;
+          
+          const rect = weightCanvas.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const depth = weightCanvas._depth;
+          const barWidth = rect.width / depth;
+          const layerIndex = Math.floor(x / barWidth);
+          
+          if (layerIndex >= 0 && layerIndex < depth) {
+            const weights = weightCanvas._weights;
+            const tooltip = $('weightTooltip');
+            const weight = weights[layerIndex];
+            const percentage = (weight * 100).toFixed(1);
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = (x + 10) + 'px';
+            tooltip.style.top = '10px';
+            tooltip.innerHTML = `L${layerIndex + 1}: <strong>${percentage}%</strong>`;
+          }
+        });
+        
+        weightCanvas.addEventListener('mouseleave', () => {
+          const tooltip = $('weightTooltip');
+          if (tooltip) tooltip.style.display = 'none';
+        });
+      }
+    });
 
     $('depthSlider').addEventListener('input', runSimulation);
     $('importanceSlider').addEventListener('input', runSimulation);
