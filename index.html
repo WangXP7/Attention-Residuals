@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attention Residuals 注意力残差 - 交互式讲解</title>
+  <style>
+    :root {
+      --bg-primary: #0f0f0f;
+      --bg-secondary: #1a1a1a;
+      --bg-card: #1e1b18;
+      --text-primary: #f0e6d3;
+      --text-secondary: #b8a88a;
+      --accent-gold: #f5a623;
+      --accent-orange: #e87e3d;
+      --accent-warm: #d4783c;
+      --border: #2e2a24;
+      --glow: rgba(245, 166, 35, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+    h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); margin-bottom: 1rem; }
+    h3 { font-size: clamp(1.2rem, 2.5vw, 1.8rem); margin-bottom: 0.8rem; }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    section {
+      padding: 4rem 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Hero */
+    #hero {
+      background: radial-gradient(ellipse at top, #1a1510 0%, var(--bg-primary) 60%);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(245, 166, 35, 0.08) 0%, transparent 50%);
+      animation: pulse 8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.1); opacity: 1; }
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-title {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1.5rem;
+      animation: fadeInUp 1s ease-out;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1rem, 2vw, 1.3rem);
+      color: var(--text-secondary);
+      max-width: 700px;
+      margin: 0 auto 2rem;
+      animation: fadeInUp 1s ease-out 0.2s both;
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeInUp 1s ease-out 0.4s both;
+    }
+
+    .meta-tag {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1.2rem;
+      border-radius: 2rem;
+      font-size: 0.9rem;
+      color: var(--accent-gold);
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 2rem;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 30px var(--glow);
+      transform: translateY(-4px);
+    }
+
+    /* Problem Section */
+    #problem {
+      background: var(--bg-secondary);
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    @media (max-width: 768px) {
+      .problem-grid { grid-template-columns: 1fr; }
+    }
+
+    .layer-viz {
+      background: var(--bg-card);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+    }
+
+    .layer-bar {
+      height: 24px;
+      margin: 4px 0;
+      border-radius: 4px;
+      position: relative;
+      transition: all 0.5s ease;
+    }
+
+    .layer-bar.standard {
+      background: linear-gradient(90deg, #4a3f35, #3d342c);
+    }
+
+    .layer-bar.attnres {
+      background: linear-gradient(90deg, var(--accent-gold), var(--accent-orange));
+      box-shadow: 0 0 10px var(--glow);
+    }
+
+    .layer-label {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .signal-strength {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: var(--accent-gold);
+      font-weight: 700;
+    }
+
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .slider-group label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--glow);
+    }
+
+    /* Solution Section */
+    #solution {
+      background: var(--bg-primary);
+    }
+
+    .block-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+
+    .block {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--bg-card), var(--border));
+      border: 2px solid var(--accent-gold);
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent-gold);
+      position: relative;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .block:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 25px var(--glow);
+      z-index: 10;
+    }
+
+    .block.active {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+      color: var(--bg-primary);
+    }
+
+    .block-connection {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    /* Interactive Demo */
+    #demo {
+      background: var(--bg-secondary);
+    }
+
+    .demo-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .demo-container { grid-template-columns: 1fr; }
+    }
+
+    .demo-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .demo-visual {
+      background: var(--bg-card);
+      border-radius: 1rem;
+      padding: 2rem;
+      border: 1px solid var(--border);
+      min-height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+      color: var(--bg-primary);
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px var(--glow);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent-gold);
+      border: 1px solid var(--accent-gold);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* Benefits */
+    #benefits {
+      background: var(--bg-primary);
+    }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .benefit-card {
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .benefit-number {
+      font-size: 3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Quiz */
+    #quiz {
+      background: var(--bg-secondary);
+    }
+
+    .quiz-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 1rem 1.5rem;
+      margin: 0.5rem 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1rem;
+    }
+
+    .quiz-option:hover {
+      border-color: var(--accent-gold);
+      background: rgba(245, 166, 35, 0.05);
+    }
+
+    .quiz-option.correct {
+      border-color: #4ade80;
+      background: rgba(74, 222, 128, 0.1);
+    }
+
+    .quiz-option.wrong {
+      border-color: #f87171;
+      background: rgba(248, 113, 113, 0.1);
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      display: none;
+    }
+
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.correct { background: rgba(74, 222, 128, 0.1); border: 1px solid #4ade80; }
+    .quiz-feedback.wrong { background: rgba(248, 113, 113, 0.1); border: 1px solid #f87171; }
+
+    /* Scroll indicator */
+    .scroll-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      animation: bounce 2s infinite;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+      40% { transform: translateX(-50%) translateY(-10px); }
+      60% { transform: translateX(-50%) translateY(-5px); }
+    }
+
+    /* Animations for info flow */
+    .info-particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--accent-gold);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-gold);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      section { padding: 2.5rem 0; min-height: auto; }
+      .hero-meta { gap: 1rem; }
+      .block { width: 50px; height: 50px; font-size: 0.7rem; }
+    }
+
+    /* Smooth section transitions */
+    section {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.8s ease;
+    }
+
+    section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Tooltip */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      border-bottom: 1px dotted var(--accent-gold);
+      cursor: help;
+    }
+
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      text-align: center;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      position: absolute;
+      z-index: 100;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(15, 15, 15, 0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 0;
+      transition: all 0.3s ease;
+    }
+
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-logo {
+      font-weight: 700;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-size: 1.1rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.3s;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent-gold);
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a href="#hero" class="nav-logo">AttnRes</a>
+      <ul class="nav-links">
+        <li><a href="#problem">问题</a></li>
+        <li><a href="#solution">原理</a></li>
+        <li><a href="#demo">实验</a></li>
+        <li><a href="#benefits">收益</a></li>
+        <li><a href="#quiz">测验</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section id="hero">
+    <div class="container hero-content">
+      <h1 class="hero-title">Attention Residuals</h1>
+      <p class="hero-subtitle">
+        注意力残差 — Kimi K3 引入的核心架构创新<br>
+        让模型在深度方向上拥有「选择性记忆」
+      </p>
+      <div class="hero-meta">
+        <span class="meta-tag">Kimi K3</span>
+        <span class="meta-tag">Moonshot AI</span>
+        <span class="meta-tag">2.8T 参数</span>
+        <span class="meta-tag">93 层</span>
+      </div>
+    </div>
+    <div class="scroll-indicator">向下滚动开始探索 ↓</div>
+  </section>
+
+  <section id="problem">
+    <div class="container">
+      <h2>01. 深度网络的「遗忘」问题</h2>
+      <div class="problem-grid">
+        <div>
+          <p class="text-secondary" style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            标准 Transformer 使用残差连接 <code style="background: var(--border); padding: 2px 6px; border-radius: 4px;">h_l = h_{l-1} + F(h_{l-1})</code>，
+            把每一层的输出加到"running total"上。层数越深，早期信息被稀释得越严重。
+          </p>
+          <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            在 Kimi K3 的 <strong style="color: var(--accent-gold);">93 层</strong> 网络中，
+            第 4 层的原始信息传到第 80 层时，已经被叠加了 <strong style="color: var(--accent-orange);">76 次</strong> 中间层的贡献，
+            信号几乎被淹没。
+          </p>
+          <div class="card">
+            <h3 style="color: var(--accent-gold);">核心矛盾</h3>
+            <p style="color: var(--text-secondary);">
+              模型越深，表达能力越强；但残差连接的「均匀加法」让浅层关键信息在传递过程中逐渐衰减。
+              长文本和多轮对话中，早期的重要信息很容易被"冲淡"。
+            </p>
+          </div>
+        </div>
+        <div class="layer-viz">
+          <h3 style="margin-bottom: 1rem; text-align: center;">信号强度随层数衰减</h3>
+          <div id="layerBars"></div>
+          <div class="control-panel">
+            <div class="slider-group">
+              <label>当前层位置: <span id="layerValue">80</span></label>
+              <input type="range" id="layerSlider" min="1" max="93" value="80">
+            </div>
+            <div class="btn-group">
+              <button class="btn" onclick="resetStandard()">重置标准残差</button>
+              <button class="btn btn-secondary" onclick="animateDilution()">播放衰减动画</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="solution">
+    <div class="container">
+      <h2>02. Attention Residuals：把「注意力」用到深度上</h2>
+      <p style="color: var(--text-secondary); max-width: 800px; margin-bottom: 2rem;">
+        标准残差是"均匀加法"，Attention Residuals 改成"选择性检索"。
+        每一层不再只是接收上一层的输出，而是主动「查询」之前所有层的表示，根据当前内容决定从哪层取信息。
+      </p>
+
+      <div class="block-diagram" id="blockDiagram"></div>
+
+      <div class="problem-grid" style="margin-top: 3rem;">
+        <div class="card">
+          <h3 style="color: #f87171;">传统残差</h3>
+          <pre style="background: var(--bg-secondary); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.85rem;"><code>h_l = h_{l-1} + F(h_{l-1})</code></pre>
+          <p style="color: var(--text-secondary); margin-top: 1rem; font-size: 0.9rem;">
+            每一层只能从紧邻的上一层获取信息，早期信息逐层叠加稀释。
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent-gold);">Attention Residuals</h3>
+          <pre style="background: var(--bg-secondary); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.85rem;"><code>α_i→l = φ(q_l, k_i) / Σ_j φ(q_l, k_j)
+h_l = Σ_i α_i→l · v_i</code></pre>
+          <p style="color: var(--text-secondary); margin-top: 1rem; font-size: 0.9rem;">
+            每层用可学习的 pseudo-query，对前面所有层的输出做 Softmax 注意力，动态选择关键信息。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="container">
+      <h2>03. 亲手试试：信息流动模拟</h2>
+      <p style="color: var(--text-secondary); max-width: 800px; margin-bottom: 1rem;">
+        调整参数，观察两种残差连接下，深层网络如何获取浅层信息。
+      </p>
+
+      <div class="demo-container">
+        <div class="demo-controls">
+          <div class="card">
+            <h3>控制面板</h3>
+            <div class="slider-group" style="margin-top: 1rem;">
+              <label>网络深度: <span id="depthValue">12</span> 层</label>
+              <input type="range" id="depthSlider" min="4" max="24" value="12">
+            </div>
+            <div class="slider-group" style="margin-top: 1rem;">
+              <label>浅层信息重要性: <span id="importanceValue">0.7</span></label>
+              <input type="range" id="importanceSlider" min="0" max="100" value="70">
+            </div>
+            <div class="btn-group" style="margin-top: 1.5rem;">
+              <button class="btn" onclick="runSimulation()">运行模拟</button>
+              <button class="btn btn-secondary" onclick="toggleMode()" id="modeBtn">切换模式: AttnRes</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>信息检索权重</h3>
+            <div id="weightBars"></div>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 1rem;">
+              AttnRes 模式下，深层会自动给浅层更高的注意力权重；
+              标准残差模式下，权重均匀分布（每层 1/N）。
+            </p>
+          </div>
+        </div>
+
+        <div class="demo-visual" id="demoVisual">
+          <canvas id="demoCanvas" width="500" height="400"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="benefits">
+    <div class="container">
+      <h2>04. 效果如何？</h2>
+      <p style="color: var(--text-secondary); max-width: 800px; margin-bottom: 2rem;">
+        官方实验数据显示，Attention Residuals 以极小的额外开销，换来了显著训练效率提升。
+      </p>
+
+      <div class="benefits-grid">
+        <div class="card benefit-card">
+          <div class="benefit-number" id="benefit1">0%</div>
+          <h3>训练效率提升</h3>
+          <p style="color: var(--text-secondary);">约 25% 的训练效率提升，让模型更快收敛到相同性能。</p>
+        </div>
+        <div class="card benefit-card">
+          <div class="benefit-number" id="benefit2">0%</div>
+          <h3>额外计算开销</h3>
+          <p style="color: var(--text-secondary);">不到 2% 的额外计算成本，投入产出比极高。</p>
+        </div>
+        <div class="card benefit-card">
+          <div class="benefit-number" id="benefit3">0</div>
+          <h3>层数深度</h3>
+          <p style="color: var(--text-secondary);">在 93 层超深网络中验证有效，信号不再随深度衰减。</p>
+        </div>
+        <div class="card benefit-card">
+          <div class="benefit-number" id="benefit4">8</div>
+          <h3>分块策略</h3>
+          <p style="color: var(--text-secondary);">将 93 层分为 8 个 Block，平衡内存开销与表达能力。</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 2rem;">
+        <h3 style="color: var(--accent-gold);">类比理解</h3>
+        <p style="color: var(--text-secondary);">
+          想象你在一个 <strong>93 层</strong> 的摩天大楼里工作。传统残差连接就像每层只能和紧邻的上下层对话，
+          消息传到顶层时已经失真。而 Attention Residuals 就像给每层装了一台"电梯"，
+          深层需要时可以直接呼叫浅层的原始信息，不再依赖逐层传递。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="quiz">
+    <div class="container">
+      <h2>05. 小测验</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 2rem;">检验一下你学到了多少！</p>
+
+      <div class="card" id="quiz1">
+        <h3>问题 1：标准残差连接的主要问题是什么？</h3>
+        <button class="quiz-option" onclick="checkAnswer(1, this, false)">A. 计算量太大，无法扩展到深层网络</button>
+        <button class="quiz-option" onclick="checkAnswer(1, this, true)">B. 深层接收到的浅层信息被逐层稀释，信号衰减</button>
+        <button class="quiz-option" onclick="checkAnswer(1, this, false)">C. 无法处理超过 1000 token 的序列</button>
+        <button class="quiz-option" onclick="checkAnswer(1, this, false)">D. 需要手动调整每层的权重</button>
+        <div class="quiz-feedback" id="feedback1"></div>
+      </div>
+
+      <div class="card" id="quiz2" style="margin-top: 1.5rem;">
+        <h3>问题 2：Attention Residuals 中，每一层是如何从早期层获取信息的？</h3>
+        <button class="quiz-option" onclick="checkAnswer(2, this, false)">A. 直接复制所有早期层的输出</button>
+        <button class="quiz-option" onclick="checkAnswer(2, this, true)">B. 使用可学习的 pseudo-query 对早期层输出做注意力加权</button>
+        <button class="quiz-option" onclick="checkAnswer(2, this, false)">C. 只从上一层接收信息，但用更大的隐藏维度</button>
+        <button class="quiz-option" onclick="checkAnswer(2, this, false)">D. 随机选择某一层的信息传递</button>
+        <div class="quiz-feedback" id="feedback2"></div>
+      </div>
+
+      <div class="card" id="quiz3" style="margin-top: 1.5rem;">
+        <h3>问题 3：为什么 Kimi K3 使用 Block-level Attention Residuals 而不是 Full Attention Residuals？</h3>
+        <button class="quiz-option" onclick="checkAnswer(3, this, false)">A. Full Attention Residuals 效果太差</button>
+        <button class="quiz-option" onclick="checkAnswer(3, this, true)">B. 为了减少内存开销，将 O(Ld) 降到 O(Nd)</button>
+        <button class="quiz-option" onclick="checkAnswer(3, this, false)">C. Block-level 更容易实现并行计算</button>
+        <button class="quiz-option" onclick="checkAnswer(3, this, false)">D. 因为 GPU 显存不足</button>
+        <div class="quiz-feedback" id="feedback3"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>交互式讲解网站 — Attention Residuals (AttnRes) | 基于 Kimi K3 技术报告</p>
+  </footer>
+
+  <script>
+    // =====================
+    // Utility Functions
+    // =====================
+    const $ = id => document.getElementById(id);
+
+    // =====================
+    // Scroll Reveal
+    // =====================
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('section').forEach(s => observer.observe(s));
+
+    // =====================
+    // Problem Section: Layer Dilution Visualization
+    // =====================
+    const TOTAL_LAYERS = 93;
+    let currentMode = 'standard';
+
+    function renderLayerBars() {
+      const container = $('layerBars');
+      const currentLayer = parseInt($('layerSlider').value);
+      $('layerValue').textContent = currentLayer;
+
+      container.innerHTML = '';
+
+      for (let i = 1; i <= TOTAL_LAYERS; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'layer-bar ' + (i <= currentLayer ? 'standard' : 'attnres');
+        
+        let strength;
+        if (i <= currentLayer) {
+          if (currentMode === 'standard') {
+            strength = Math.max(5, 100 - (currentLayer - i) * 1.2);
+          } else {
+            // AttnRes: deep layers can retrieve from early layers
+            const dist = Math.abs(i - currentLayer);
+            strength = dist === 0 ? 100 : Math.max(30, 100 - dist * 8);
+          }
+        } else {
+          strength = 0;
+        }
+
+        bar.style.width = strength + '%';
+        bar.innerHTML = `
+          <span class="layer-label">L${i}</span>
+          <span class="signal-strength">${Math.round(strength)}%</span>
+        `;
+        container.appendChild(bar);
+      }
+    }
+
+    $('layerSlider').addEventListener('input', renderLayerBars);
+
+    function resetStandard() {
+      currentMode = 'standard';
+      renderLayerBars();
+    }
+
+    function animateDilution() {
+      currentMode = 'standard';
+      let layer = 1;
+      const interval = setInterval(() => {
+        $('layerSlider').value = layer;
+        renderLayerBars();
+        layer++;
+        if (layer > 93) {
+          clearInterval(interval);
+          // Then show AttnRes recovery
+          setTimeout(() => {
+            currentMode = 'attnres';
+            renderLayerBars();
+          }, 1000);
+        }
+      }, 50);
+    }
+
+    // Initial render
+    renderLayerBars();
+
+    // =====================
+    // Solution Section: Block Diagram
+    // =====================
+    const BLOCKS = 8;
+    const LAYERS_PER_BLOCK = 12;
+    const blockDiagram = $('blockDiagram');
+
+    for (let i = 0; i < BLOCKS; i++) {
+      const block = document.createElement('div');
+      block.className = 'block';
+      block.textContent = `B${i}`;
+      block.onclick = () => {
+        document.querySelectorAll('.block').forEach(b => b.classList.remove('active'));
+        block.classList.add('active');
+        showBlockDetail(i);
+      };
+      blockDiagram.appendChild(block);
+    }
+
+    function showBlockDetail(blockIndex) {
+      // Could expand to show more detail
+      console.log(`Block ${blockIndex}: layers ${blockIndex * LAYERS_PER_BLOCK + 1} - ${(blockIndex + 1) * LAYERS_PER_BLOCK}`);
+    }
+
+    // =====================
+    // Demo Section: Interactive Simulation
+    // =====================
+    let simMode = 'attnres';
+    const canvas = $('demoCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function toggleMode() {
+      simMode = simMode === 'attnres' ? 'standard' : 'attnres';
+      $('modeBtn').textContent = '切换模式: ' + (simMode === 'attnres' ? 'AttnRes' : 'Standard');
+      runSimulation();
+    }
+
+    function runSimulation() {
+      const depth = parseInt($('depthSlider').value);
+      const importance = parseInt($('importanceSlider').value) / 100;
+      $('depthValue').textContent = depth;
+      $('importanceValue').textContent = importance.toFixed(2);
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const layers = [];
+      const startY = 50;
+      const layerHeight = (canvas.height - 100) / (depth - 1);
+      const centerX = canvas.width / 2;
+
+      // Draw layers
+      for (let i = 0; i < depth; i++) {
+        const y = startY + i * layerHeight;
+        layers.push({ index: i, y });
+
+        // Layer circle
+        ctx.beginPath();
+        ctx.arc(centerX, y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = i === 0 ? '#f5a623' : (i === depth - 1 ? '#e87e3d' : '#4a3f35');
+        ctx.fill();
+        ctx.strokeStyle = '#f5a623';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Layer label
+        ctx.fillStyle = '#f0e6d3';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`L${i + 1}`, centerX, y + 4);
+      }
+
+      // Draw connections based on mode
+      if (simMode === 'standard') {
+        // Only connect adjacent layers
+        for (let i = 0; i < depth - 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(centerX + 20, layers[i].y);
+          ctx.lineTo(centerX - 20, layers[i + 1].y);
+          ctx.strokeStyle = 'rgba(245, 166, 35, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      } else {
+        // AttnRes: deep layers connect to early layers with varying strength
+        const deepLayer = depth - 1;
+        for (let i = 0; i < depth; i++) {
+          const dist = Math.abs(i - deepLayer);
+          const weight = dist === 0 ? 0.3 : Math.max(0.05, importance * (1 - dist / depth));
+          
+          ctx.beginPath();
+          ctx.moveTo(centerX + 20, layers[i].y);
+          ctx.lineTo(centerX - 20, layers[deepLayer].y);
+          ctx.strokeStyle = `rgba(245, 166, 35, ${weight})`;
+          ctx.lineWidth = weight * 4;
+          ctx.stroke();
+        }
+      }
+
+      // Update weight bars
+      updateWeightBars(depth, importance);
+    }
+
+    function updateWeightBars(depth, importance) {
+      const container = $('weightBars');
+      container.innerHTML = '';
+
+      if (simMode === 'standard') {
+        const weight = (1 / depth * 100).toFixed(1);
+        for (let i = 0; i < depth; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin: 4px 0;';
+          row.innerHTML = `
+            <span style="width: 30px; font-size: 0.8rem; color: var(--text-secondary);">L${i + 1}</span>
+            <div style="flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+              <div style="width: ${weight}%; height: 100%; background: var(--accent-gold);"></div>
+            </div>
+            <span style="width: 40px; font-size: 0.8rem; color: var(--accent-gold);">${weight}%</span>
+          `;
+          container.appendChild(row);
+        }
+      } else {
+        const deepIdx = depth - 1;
+        for (let i = 0; i < depth; i++) {
+          const dist = Math.abs(i - deepIdx);
+          let weight;
+          if (i === deepIdx) {
+            weight = 30;
+          } else {
+            weight = Math.max(5, importance * 100 * (1 - dist / depth));
+          }
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin: 4px 0;';
+          row.innerHTML = `
+            <span style="width: 30px; font-size: 0.8rem; color: var(--text-secondary);">L${i + 1}</span>
+            <div style="flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+              <div style="width: ${weight}%; height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-orange));"></div>
+            </div>
+            <span style="width: 40px; font-size: 0.8rem; color: var(--accent-gold);">${weight.toFixed(0)}%</span>
+          `;
+          container.appendChild(row);
+        }
+      }
+    }
+
+    $('depthSlider').addEventListener('input', runSimulation);
+    $('importanceSlider').addEventListener('input', runSimulation);
+
+    // Initial demo run
+    runSimulation();
+
+    // =====================
+    // Benefits Counter Animation
+    // =====================
+    function animateCounter(elementId, target, suffix = '', duration = 2000) {
+      const el = $(elementId);
+      const start = 0;
+      const startTime = performance.now();
+
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(start + (target - start) * easeOut);
+        el.textContent = current + suffix;
+
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    const benefitsObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          animateCounter('benefit1', 25, '%');
+          animateCounter('benefit2', 2, '%');
+          animateCounter('benefit3', 93);
+          animateCounter('benefit4', 8);
+          benefitsObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+
+    benefitsObserver.observe($('benefits'));
+
+    // =====================
+    // Quiz
+    // =====================
+    function checkAnswer(quizNum, btn, isCorrect) {
+      const container = $(`quiz${quizNum}`);
+      const feedback = $(`feedback${quizNum}`);
+      
+      // Disable all options
+      container.querySelectorAll('.quiz-option').forEach(opt => {
+        opt.disabled = true;
+        opt.style.cursor = 'default';
+      });
+
+      if (isCorrect) {
+        btn.classList.add('correct');
+        feedback.className = 'quiz-feedback show correct';
+        feedback.innerHTML = '<strong>✓ 正确！</strong> ' + getCorrectExplanation(quizNum);
+      } else {
+        btn.classList.add('wrong');
+        // Highlight correct answer
+        container.querySelectorAll('.quiz-option').forEach(opt => {
+          if (opt.onclick.toString().includes('true')) {
+            opt.classList.add('correct');
+          }
+        });
+        feedback.className = 'quiz-feedback show wrong';
+        feedback.innerHTML = '<strong>✗ 错误</strong> — ' + getCorrectExplanation(quizNum);
+      }
+    }
+
+    function getCorrectExplanation(num) {
+      const explanations = {
+        1: '在深层网络中，标准残差连接会让早期信息被逐层叠加稀释，导致深层难以获取浅层的原始特征。',
+        2: 'AttnRes 使用可学习的 pseudo-query，对前面所有层的输出计算 Softmax 注意力权重，实现选择性检索。',
+        3: 'Full Attention Residuals 需要保留所有前序层输出，内存开销 O(Ld)；Block-level 将 93 层分为 8 个 Block，只在 Block 间做注意力，将开销降到 O(Nd)。'
+      };
+      return explanations[num];
+    }
+  </script>
+</body>
+</html>
