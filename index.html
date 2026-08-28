@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Attention Residuals 注意力残差 · 交互式讲解</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --bg-2: #15161d;
+      --panel: #1f2833;
+      --text: #c5c6c7;
+      --text-dim: #8d99ae;
+      --accent: #f5a623;
+      --accent-2: #66fcf1;
+      --accent-3: #b084ff;
+      --danger: #ff6b6b;
+      --success: #5cf5a3;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --mono: "SF Mono", "Consolas", "Monaco", "Lucida Console", monospace;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); }
+    #app { width: 100%; height: 100%; display: flex; flex-direction: column; }
+    header { flex: 0 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2a2d38; background: rgba(11,12,16,0.95); backdrop-filter: blur(8px); z-index: 10; }
+    .logo { font-weight: 700; font-size: 16px; color: var(--accent); letter-spacing: 0.5px; }
+    .progress { display: flex; gap: 6px; align-items: center; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3f4b; transition: all 0.3s; }
+    .dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .dot.visited { background: #6b7280; }
+    main { flex: 1 1 auto; display: flex; flex-direction: row; min-height: 0; }
+    #stage { flex: 1 1 auto; position: relative; min-width: 0; min-height: 0; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #sidebar { flex: 0 0 380px; max-width: 40%; display: flex; flex-direction: column; border-left: 1px solid #2a2d38; background: var(--bg-2); }
+    @media (max-width: 900px) {
+      main { flex-direction: column-reverse; }
+      #sidebar { flex: 0 0 auto; max-width: 100%; height: 34%; border-left: none; border-top: 1px solid #2a2d38; }
+      #stage { flex: 1 1 auto; height: 66%; }
+    }
+    .content { flex: 1 1 auto; padding: 24px 28px; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: #3a3f4b; border-radius: 3px; }
+    @media (max-width: 900px) {
+      .content { padding: 14px 18px; }
+      h1 { font-size: 20px; margin-bottom: 8px; }
+      p { font-size: 13px; line-height: 1.6; margin-bottom: 8px; }
+      .formula { padding: 8px 12px; font-size: 12px; margin: 8px 0; }
+      .controls { padding: 10px 16px; gap: 10px; }
+      .slider-label { font-size: 12px; }
+    }
+    h1 { font-size: 26px; margin: 0 0 12px; line-height: 1.25; color: #fff; }
+    h2 { font-size: 20px; margin: 0 0 10px; color: var(--accent-2); }
+    p { font-size: 15px; line-height: 1.7; margin: 0 0 14px; color: var(--text); }
+    .tag { display: inline-block; background: rgba(245,166,35,0.12); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); padding: 3px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 14px; font-family: var(--mono); }
+    .controls { flex: 0 0 auto; padding: 18px 28px; border-top: 1px solid #2a2d38; background: rgba(21,22,29,0.95); display: flex; flex-direction: column; gap: 14px; }
+    .btn-row { display: flex; gap: 10px; }
+    button { flex: 1; padding: 11px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: var(--font); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), #e08e0b); color: #0b0c10; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(245,166,35,0.3); }
+    .btn-secondary { background: #2a2d38; color: var(--text); border: 1px solid #3a3f4b; }
+    .btn-secondary:hover { background: #353a47; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .slider-group { display: flex; flex-direction: column; gap: 6px; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .formula { background: rgba(255,255,255,0.04); border-left: 3px solid var(--accent-3); padding: 12px 16px; border-radius: 0 8px 8px 0; font-family: var(--mono); font-size: 13px; margin: 14px 0; color: #e2e8f0; overflow-x: auto; }
+    .hint { font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+    .overlay { position: absolute; top: 16px; left: 16px; background: rgba(11,12,16,0.85); border: 1px solid #2a2d38; padding: 10px 14px; border-radius: 8px; font-size: 13px; color: var(--text-dim); pointer-events: none; max-width: 220px; }
+    .start-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px; z-index: 5; }
+    .start-screen h1 { font-size: 42px; margin-bottom: 16px; background: linear-gradient(135deg, #fff, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .start-screen p { max-width: 520px; color: var(--text-dim); font-size: 17px; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.4); } 50% { box-shadow: 0 0 0 12px rgba(245,166,35,0); } }
+    .tooltip { position: absolute; background: rgba(21,22,29,0.96); border: 1px solid #3a3f4b; padding: 10px 14px; border-radius: 8px; font-size: 13px; color: #fff; pointer-events: none; opacity: 0; transition: opacity 0.15s; max-width: 260px; z-index: 20; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="logo">🧩 Attention Residuals</div>
+      <div class="progress" id="progress"></div>
+    </header>
+    <main>
+      <div id="stage">
+        <canvas id="canvas"></canvas>
+        <div id="overlay" class="overlay hidden"></div>
+        <div id="tooltip" class="tooltip"></div>
+        <div id="startScreen" class="start-screen">
+          <h1>注意力残差</h1>
+          <p>Kimi K3 的核心架构创新：把 Attention 从「横向看词」变成「纵向看层」，让深层网络不再丢失浅层关键信息。</p>
+          <button class="btn-primary pulse" style="margin-top: 24px; max-width: 220px;" onclick="app.next()">开始交互讲解</button>
+          <p class="hint" style="margin-top: 16px;">使用 ← → 键切换步骤 · 鼠标悬停查看细节</p>
+        </div>
+      </div>
+      <div id="sidebar">
+        <div class="content" id="content">
+          <div class="tag">Step 0 / 8</div>
+          <h1>准备好了吗？</h1>
+          <p>我们将通过 8 个交互步骤，从「传话游戏」讲起，一步步理解 Kimi K3 的 Attention Residuals 机制。</p>
+        </div>
+        <div class="controls" id="controls">
+          <div class="btn-row">
+            <button class="btn-secondary" id="btnPrev" onclick="app.prev()" disabled>上一步</button>
+            <button class="btn-primary" id="btnNext" onclick="app.next()">下一步</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ===== Utility =====
+    const $ = (id) => document.getElementById(id);
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    const easeInOut = (t) => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    function fitLayers(layerCount, extraSpace) {
+      const availableH = app.height - extraSpace;
+      const unit = Math.min(72, Math.max(40, availableH / layerCount));
+      const layerH = unit * 0.64;
+      const gap = unit * 0.36;
+      const totalH = layerCount * unit - gap;
+      const startY = (app.height - totalH) / 2 + 4;
+      return { layerH, gap, totalH, startY, unit };
+    }
+
+    // ===== App State =====
+    const app = {
+      step: -1,
+      totalSteps: 8,
+      anim: 0,
+      lastTime: 0,
+      width: 0,
+      height: 0,
+      dpr: window.devicePixelRatio || 1,
+      canvas: $('canvas'),
+      ctx: null,
+      hovered: null,
+      params: {
+        layerCount: 6,
+        blockSize: 3,
+        queryFocus: 0.5,
+        tokenIdx: 2,
+        layerIdx: 3,
+        playSpeed: 1,
+        dilution: 0.5,
+      },
+      message: "今天的会议要讨论第三季度预算、新产品上线时间表，以及团队招聘计划。",
+      tokens: ["今天", "的", "会议", "要", "讨论", "第三", "季度", "预算", "、", "新产品", "上线", "时间表", "，", "以及", "团队", "招聘", "计划", "。"],
+      steps: [],
+    };
+    app.ctx = app.canvas.getContext('2d');
+
+    // ===== Resize =====
+    function resize() {
+      const rect = $('stage').getBoundingClientRect();
+      app.width = rect.width;
+      app.height = rect.height;
+      app.canvas.width = Math.floor(app.width * app.dpr);
+      app.canvas.height = Math.floor(app.height * app.dpr);
+      app.canvas.style.width = app.width + 'px';
+      app.canvas.style.height = app.height + 'px';
+      app.ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ===== Tooltip =====
+    const tooltip = $('tooltip');
+    function showTooltip(x, y, html) {
+      tooltip.innerHTML = html;
+      tooltip.style.left = clamp(x + 14, 10, app.width - 270) + 'px';
+      tooltip.style.top = clamp(y + 14, 10, app.height - 80) + 'px';
+      tooltip.style.opacity = 1;
+    }
+    function hideTooltip() { tooltip.style.opacity = 0; }
+
+    // ===== Drawing Helpers =====
+    function clear(ctx) {
+      ctx.clearRect(0, 0, app.width, app.height);
+    }
+    function roundRect(ctx, x, y, w, h, r) {
+      const rr = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y, x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x, y+h, rr);
+      ctx.arcTo(x, y+h, x, y, rr);
+      ctx.arcTo(x, y, x+w, y, rr);
+      ctx.closePath();
+    }
+    function drawArrow(ctx, x1, y1, x2, y2, color, width=2, alpha=1) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      const angle = Math.atan2(y2-y1, x2-x1);
+      const head = 8;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - head*Math.cos(angle - 0.5), y2 - head*Math.sin(angle - 0.5));
+      ctx.lineTo(x2 - head*Math.cos(angle + 0.5), y2 - head*Math.sin(angle + 0.5));
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+    }
+    function drawText(ctx, text, x, y, options={}) {
+      ctx.save();
+      ctx.font = options.font || '14px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign = options.align || 'left';
+      ctx.textBaseline = options.baseline || 'middle';
+      ctx.fillStyle = options.color || '#c5c6c7';
+      if (options.maxWidth) {
+        const words = text.split('');
+        let line = '', lines = [];
+        for (let n=0; n<words.length; n++) {
+          const test = line + words[n];
+          if (ctx.measureText(test).width > options.maxWidth && n > 0) {
+            lines.push(line); line = words[n];
+          } else line = test;
+        }
+        lines.push(line);
+        lines.forEach((l, i) => ctx.fillText(l, x, y + i*(options.lineHeight||20)));
+      } else {
+        ctx.fillText(text, x, y);
+      }
+      ctx.restore();
+    }
+
+    // ===== Step 1: Standard Residual Problem =====
+    function renderStep1(ctx, t) {
+      const cx = app.width / 2;
+      const layers = Math.max(3, Math.min(8, Math.floor(app.params.layerCount)));
+      const boxW = Math.min(420, app.width - 60);
+      const topY = Math.max(28, app.height * 0.06);
+      const desiredUnit = (app.height - topY - 90) / layers;
+      const unit = Math.min(68, Math.max(42, desiredUnit));
+      const layerH = unit * 0.62;
+      const gap = unit * 0.38;
+
+      drawText(ctx, '标准 Transformer 残差连接', cx, Math.max(10, topY - 30), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      // original message at top
+      ctx.save();
+      ctx.globalAlpha = easeOut(t);
+      drawText(ctx, '原始信息：', cx - boxW/2, topY - 2, { baseline: 'top', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#8d99ae' });
+      roundRect(ctx, cx - boxW/2, topY, boxW, 32, 6);
+      ctx.fillStyle = 'rgba(245,166,35,0.12)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(245,166,35,0.4)';
+      ctx.stroke();
+      drawText(ctx, app.message.substring(0, 22) + '...', cx, topY + 16, { align: 'center', font: '13px ' + getComputedStyle(document.body).fontFamily, color: '#f5a623' });
+      ctx.restore();
+
+      const startY = topY + 44;
+      for (let i = 0; i < layers; i++) {
+        const y = startY + i * (layerH + gap);
+        const a = clamp((t * layers * 1.2) - i * 0.8, 0, 1);
+        const decayBase = 1 - app.params.dilution * 0.35;
+        const keepRatio = Math.pow(decayBase, i);
+
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, cx - boxW/2, y, boxW, layerH, 8);
+        ctx.fillStyle = `rgba(102,252,241,${0.08 + 0.14 * keepRatio})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(102,252,241,${0.3 + 0.55 * keepRatio})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // residual arrow down
+        if (i < layers - 1) {
+          drawArrow(ctx, cx, y + layerH, cx, y + layerH + gap, '#66fcf1', 2, 0.5 * a);
+        }
+
+        // show dilution
+        const keepPct = Math.round(keepRatio * 100);
+        drawText(ctx, `层 ${i+1}`, cx - boxW/2 + 16, y + layerH/2, { font: 'bold 13px ' + getComputedStyle(document.body).fontFamily, color: '#66fcf1' });
+        drawText(ctx, `保留原始信息 ≈ ${Math.max(5, keepPct)}%`, cx, y + layerH/2, { align: 'center', font: '13px ' + getComputedStyle(document.body).fontFamily, color: keepPct > 50 ? '#fff' : '#ff6b6b' });
+        ctx.restore();
+      }
+
+      // bottom conclusion
+      const lastA = clamp((t * layers * 1.2) - (layers-1) * 0.8 - 0.5, 0, 1);
+      if (lastA > 0) {
+        ctx.save();
+        ctx.globalAlpha = lastA;
+        drawText(ctx, '💡 问题：层数越深，早期关键信息越容易被稀释。', cx, startY + (layers-1)*(layerH+gap) + layerH + 14, { align: 'center', baseline: 'top', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#ff6b6b' });
+        ctx.restore();
+      }
+    }
+
+    // ===== Step 2: Sequence Attention =====
+    function renderStep2(ctx, t) {
+      const tokens = app.tokens.slice(0, 8);
+      const cx = app.width / 2;
+      const y = app.height / 2 + 20;
+      const totalW = Math.min(app.width - 40, tokens.length * 72);
+      const startX = cx - totalW / 2;
+      const tokenW = totalW / tokens.length;
+
+      drawText(ctx, '序列注意力：每个词横向看相关词', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      const hovered = app.hovered && app.hovered.type === 'token' ? app.hovered.idx : app.params.tokenIdx;
+
+      for (let i = 0; i < tokens.length; i++) {
+        const x = startX + i * tokenW + tokenW/2;
+        const isHovered = i === hovered;
+        const a = clamp(t * 1.4 - i * 0.1, 0, 1);
+
+        // attention lines
+        if (isHovered) {
+          for (let j = 0; j <= i; j++) {
+            const xj = startX + j * tokenW + tokenW/2;
+            const weight = j === i ? 1 : (j === i-1 || j === i-2 ? 0.6 : 0.25);
+            ctx.save();
+            ctx.globalAlpha = a * weight;
+            ctx.strokeStyle = '#b084ff';
+            ctx.lineWidth = 2 + weight * 3;
+            ctx.beginPath();
+            ctx.moveTo(xj, y - 36);
+            ctx.quadraticCurveTo((xj + x)/2, y - 70 - weight*20, x, y - 36);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, x - tokenW/2 + 4, y - 36, tokenW - 8, 52, 8);
+        ctx.fillStyle = isHovered ? 'rgba(176,132,255,0.18)' : 'rgba(255,255,255,0.05)';
+        ctx.fill();
+        ctx.strokeStyle = isHovered ? '#b084ff' : '#3a3f4b';
+        ctx.lineWidth = isHovered ? 2 : 1;
+        ctx.stroke();
+        drawText(ctx, tokens[i], x, y - 10, { align: 'center', font: '15px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        ctx.restore();
+
+        // label
+        if (i === hovered) {
+          ctx.save();
+          ctx.globalAlpha = a;
+          drawText(ctx, `Query: "${tokens[i]}"`, x, y + 42, { align: 'center', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#b084ff' });
+          ctx.restore();
+        }
+      }
+
+      // axis label
+      ctx.save();
+      ctx.globalAlpha = clamp(t - 0.5, 0, 1);
+      drawText(ctx, '← 序列维度（token 之间互相看）→', cx, app.height - 40, { align: 'center', font: '13px ' + getComputedStyle(document.body).fontFamily, color: '#8d99ae' });
+      ctx.restore();
+    }
+
+    // ===== Step 3: Rotate Axis =====
+    function renderStep3(ctx, t) {
+      const cx = app.width / 2;
+      const cy = app.height / 2;
+      const fadeOut = clamp(t * 2, 0, 1);
+      const fadeIn = clamp((t - 0.45) * 2, 0, 1);
+
+      drawText(ctx, '关键转身：把 Attention 从横向转到纵向', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      // Horizontal tokens (fading out)
+      const tokens = app.tokens.slice(0, 6);
+      const totalW = Math.min(420, app.width - 80);
+      const startX = cx - totalW/2;
+      const tokenW = totalW / tokens.length;
+      const y = cy - 70;
+      ctx.save();
+      ctx.globalAlpha = 1 - fadeOut;
+      for (let i = 0; i < tokens.length; i++) {
+        const x = startX + i*tokenW + tokenW/2;
+        roundRect(ctx, x - tokenW/2 + 4, y - 28, tokenW - 8, 56, 8);
+        ctx.fillStyle = 'rgba(176,132,255,0.12)';
+        ctx.fill();
+        ctx.strokeStyle = '#b084ff';
+        ctx.stroke();
+        drawText(ctx, tokens[i], x, y, { align: 'center', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+      }
+      drawArrow(ctx, startX - 30, y, startX - 30, y + 60, '#b084ff', 2, 0.6);
+      drawText(ctx, '序列维度（横向）', startX - 30, y + 78, { align: 'center', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#b084ff' });
+      ctx.restore();
+
+      // Vertical layers (fading in)
+      if (fadeIn > 0) {
+        ctx.save();
+        ctx.globalAlpha = fadeIn;
+        const layerCount = 6;
+        const layerH = 52;
+        const gap = 22;
+        const totalH = layerCount * (layerH + gap) - gap;
+        const startY = cy - totalH/2 + 20;
+        const boxW = Math.min(260, app.width - 100);
+        for (let i = 0; i < layerCount; i++) {
+          const ly = startY + i*(layerH+gap);
+          roundRect(ctx, cx - boxW/2, ly, boxW, layerH, 8);
+          ctx.fillStyle = 'rgba(102,252,241,0.12)';
+          ctx.fill();
+          ctx.strokeStyle = '#66fcf1';
+          ctx.stroke();
+          drawText(ctx, `层 ${i+1}`, cx, ly + layerH/2, { align: 'center', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        }
+        drawArrow(ctx, cx + boxW/2 + 30, startY, cx + boxW/2 + 30, startY + totalH, '#66fcf1', 2, 0.6);
+        drawText(ctx, '深度维度（纵向）', cx + boxW/2 + 30, startY + totalH + 18, { align: 'center', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#66fcf1' });
+        ctx.restore();
+      }
+
+      // Rotation arrow illustration
+      if (t > 0.2 && t < 0.85) {
+        const a = Math.sin((t - 0.2) / 0.65 * Math.PI);
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#f5a623';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 90, Math.PI * 0.7, Math.PI * 0.3, false);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // arrow head
+        const angle = Math.PI * 0.3;
+        const ax = cx + 90 * Math.cos(angle);
+        const ay = cy + 90 * Math.sin(angle);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - 10*Math.cos(angle - 0.5), ay - 10*Math.sin(angle - 0.5));
+        ctx.lineTo(ax - 10*Math.cos(angle + 0.5), ay - 10*Math.sin(angle + 0.5));
+        ctx.closePath();
+        ctx.fillStyle = '#f5a623';
+        ctx.fill();
+        drawText(ctx, '旋转 90°', cx + 110, cy - 50, { align: 'center', font: '13px ' + getComputedStyle(document.body).fontFamily, color: '#f5a623' });
+        ctx.restore();
+      }
+    }
+
+    // ===== Step 4: Attention Residuals =====
+    function renderStep4(ctx, t) {
+      const cx = app.width / 2;
+      const layerCount = 6;
+      const { layerH, gap, totalH, startY } = fitLayers(layerCount, 70);
+      const boxW = Math.min(320, app.width - 80);
+
+      drawText(ctx, 'Attention Residuals：每一层纵向看前面所有层', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      const selected = app.hovered && app.hovered.type === 'layer' ? app.hovered.idx : app.params.layerIdx;
+
+      for (let i = 0; i < layerCount; i++) {
+        const y = startY + i * (layerH + gap);
+        const a = clamp(t * 1.6 - i * 0.12, 0, 1);
+        const isSelected = i === selected;
+
+        // attention lines from previous layers to selected
+        if (isSelected && i > 0) {
+          for (let j = 0; j < i; j++) {
+            const yj = startY + j * (layerH + gap) + layerH/2;
+            const weight = 1 - (i - j - 1) * 0.18;
+            ctx.save();
+            ctx.globalAlpha = a * clamp(weight, 0.25, 1);
+            ctx.strokeStyle = '#f5a623';
+            ctx.lineWidth = 1.5 + weight * 3;
+            ctx.beginPath();
+            ctx.moveTo(cx - boxW/2 + 20, yj);
+            ctx.quadraticCurveTo(cx - boxW/2 - 40 - weight*15, (yj + y + layerH/2)/2, cx - boxW/2 + 20, y + layerH/2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, cx - boxW/2, y, boxW, layerH, 8);
+        ctx.fillStyle = isSelected ? 'rgba(245,166,35,0.15)' : 'rgba(102,252,241,0.08)';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? '#f5a623' : '#66fcf1';
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.stroke();
+
+        drawText(ctx, `层 ${i+1}`, cx - boxW/2 + 24, y + layerH/2, { font: 'bold 14px ' + getComputedStyle(document.body).fontFamily, color: isSelected ? '#f5a623' : '#66fcf1' });
+        if (isSelected) {
+          drawText(ctx, `← 我来看前面 ${i} 层的输出`, cx + boxW/2 - 16, y + layerH/2, { align: 'right', font: '13px ' + getComputedStyle(document.body).fontFamily, color: '#f5a623' });
+        }
+        ctx.restore();
+      }
+
+      // formula pop
+      if (t > 0.6) {
+        ctx.save();
+        ctx.globalAlpha = clamp((t - 0.6) * 2, 0, 1);
+        drawText(ctx, 'h_l = Σ α · h_i  （对前面层加权求和）', cx, startY + totalH + 16, { align: 'center', baseline: 'top', font: '15px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        ctx.restore();
+      }
+    }
+
+    // ===== Step 5: Learned Query =====
+    function renderStep5(ctx, t) {
+      const cx = app.width / 2;
+      const layerCount = 5;
+      const { layerH, gap, totalH, startY } = fitLayers(layerCount, 70);
+      const boxW = Math.min(300, app.width - 80);
+      const leftX = cx - boxW/2 - 80;
+      const rightX = cx + boxW/2 + 80;
+
+      drawText(ctx, 'Query 是学出来的「检索意图」', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      const selected = app.hovered && app.hovered.type === 'layer' ? app.hovered.idx : app.params.layerIdx;
+
+      for (let i = 0; i < layerCount; i++) {
+        const y = startY + i * (layerH + gap);
+        const a = clamp(t * 1.6 - i * 0.12, 0, 1);
+        const isSelected = i === selected;
+
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, cx - boxW/2, y, boxW, layerH, 8);
+        ctx.fillStyle = isSelected ? 'rgba(245,166,35,0.15)' : 'rgba(102,252,241,0.08)';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? '#f5a623' : '#66fcf1';
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.stroke();
+        drawText(ctx, `层 ${i+1}`, cx - boxW/2 + 20, y + layerH/2, { font: 'bold 14px ' + getComputedStyle(document.body).fontFamily, color: isSelected ? '#f5a623' : '#66fcf1' });
+        ctx.restore();
+
+        if (isSelected) {
+          // query vector visual
+          ctx.save();
+          ctx.globalAlpha = a;
+          const queryY = y + layerH/2;
+          drawText(ctx, 'Query w_l', leftX, queryY - 18, { align: 'center', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#b084ff' });
+          roundRect(ctx, leftX - 34, queryY - 12, 68, 24, 6);
+          ctx.fillStyle = 'rgba(176,132,255,0.2)';
+          ctx.fill();
+          ctx.strokeStyle = '#b084ff';
+          ctx.stroke();
+          drawArrow(ctx, leftX + 34, queryY, cx - boxW/2 - 4, queryY, '#b084ff', 2, 0.8);
+          ctx.restore();
+
+          // matching keys with heatmap bars
+          for (let j = 0; j <= i; j++) {
+            const yj = startY + j * (layerH + gap) + layerH/2;
+            const baseWeight = 1 - (i - j) * 0.18;
+            const queryBias = (j % 3 === selected % 3) ? 0.3 : 0;
+            const weight = clamp(baseWeight + queryBias, 0.15, 1);
+            const barW = weight * 50;
+            ctx.save();
+            ctx.globalAlpha = a;
+            // line
+            ctx.strokeStyle = `rgba(245,166,35,${0.4 + weight*0.6})`;
+            ctx.lineWidth = 1.5 + weight * 3;
+            ctx.beginPath();
+            ctx.moveTo(cx + boxW/2, yj);
+            ctx.lineTo(cx + boxW/2 + 30, yj);
+            ctx.stroke();
+            // bar
+            roundRect(ctx, rightX - barW, yj - 6, barW, 12, 4);
+            ctx.fillStyle = `rgba(245,166,35,${0.5 + weight*0.5})`;
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // label
+          ctx.save();
+          ctx.globalAlpha = a;
+          drawText(ctx, '匹配度（softmax 权重）', rightX, startY - 22, { align: 'center', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#8d99ae' });
+          ctx.restore();
+        }
+      }
+
+      if (t > 0.6) {
+        ctx.save();
+        ctx.globalAlpha = clamp((t - 0.6) * 2, 0, 1);
+        drawText(ctx, '每一层的 Query 是训练得到的参数向量，不依赖当前输入 token。', cx, startY + totalH + 14, { align: 'center', baseline: 'top', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        ctx.restore();
+      }
+    }
+
+    // ===== Step 6: Block Attention Residuals =====
+    function renderStep6(ctx, t) {
+      const cx = app.width / 2;
+      const layerCount = 8;
+      const blockSize = Math.max(2, Math.min(4, Math.floor(app.params.blockSize)));
+      const blocks = Math.ceil(layerCount / blockSize);
+      const { layerH, gap, totalH, startY } = fitLayers(layerCount, 72);
+      const boxW = Math.min(300, app.width - 90);
+
+      drawText(ctx, 'Block Attention Residuals：分块降低通信开销', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      const blockColors = ['rgba(245,166,35,', 'rgba(102,252,241,', 'rgba(176,132,255,', 'rgba(92,245,163,'];
+
+      for (let i = 0; i < layerCount; i++) {
+        const y = startY + i * (layerH + gap);
+        const b = Math.floor(i / blockSize);
+        const a = clamp(t * 1.6 - i * 0.08, 0, 1);
+
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, cx - boxW/2, y, boxW, layerH, 6);
+        ctx.fillStyle = blockColors[b % blockColors.length] + '0.12)';
+        ctx.fill();
+        ctx.strokeStyle = blockColors[b % blockColors.length] + '0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        drawText(ctx, `层 ${i+1}`, cx - boxW/2 + 18, y + layerH/2, { font: 'bold 13px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        drawText(ctx, `Block ${b+1}`, cx + boxW/2 - 18, y + layerH/2, { align: 'right', font: '12px ' + getComputedStyle(document.body).fontFamily, color: blockColors[b % blockColors.length] + '1)' });
+        ctx.restore();
+      }
+
+      // block brackets
+      for (let b = 0; b < blocks; b++) {
+        const first = b * blockSize;
+        const last = Math.min((b+1)*blockSize, layerCount) - 1;
+        const y1 = startY + first * (layerH + gap) - 8;
+        const y2 = startY + last * (layerH + gap) + layerH + 8;
+        ctx.save();
+        ctx.globalAlpha = clamp(t - 0.4, 0, 1);
+        ctx.strokeStyle = blockColors[b % blockColors.length] + '0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + boxW/2 + 14, y1);
+        ctx.lineTo(cx + boxW/2 + 22, y1);
+        ctx.lineTo(cx + boxW/2 + 22, y2);
+        ctx.lineTo(cx + boxW/2 + 14, y2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // summary
+      if (t > 0.6) {
+        ctx.save();
+        ctx.globalAlpha = clamp((t - 0.6) * 2, 0, 1);
+        const y = startY + totalH + 16;
+        drawText(ctx, '完整版：O(L²) 通信', cx - 140, y, { align: 'center', baseline: 'top', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#ff6b6b' });
+        drawText(ctx, '→', cx, y, { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        drawText(ctx, 'Block 版：O(N·d) 通信', cx + 140, y, { align: 'center', baseline: 'top', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#5cf5a3' });
+        ctx.restore();
+      }
+    }
+
+    // ===== Step 7: Benefits =====
+    function renderStep7(ctx, t) {
+      const cx = app.width / 2;
+      const cy = app.height / 2;
+      const cards = [
+        { title: '早期信息不丢失', desc: '浅层特征可通过 attention 直接被深层读取，不再依赖单一残差流。', color: '#f5a623' },
+        { title: '输出有界 · 梯度稳定', desc: '选择性聚合避免输出幅度随深度无限增长，训练更稳定。', color: '#66fcf1' },
+        { title: '扩展效率更高', desc: 'Block 设计使通信开销大幅下降，计算效率提升约 1.25×。', color: '#b084ff' },
+      ];
+      const cardW = Math.min(260, app.width - 60);
+      const cardH = 120;
+      const gap = 20;
+      const totalH = cards.length * (cardH + gap) - gap;
+      const startY = cy - totalH/2;
+
+      drawText(ctx, 'Attention Residuals 的核心收益', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      cards.forEach((card, i) => {
+        const y = startY + i * (cardH + gap);
+        const a = clamp(t * 1.4 - i * 0.2, 0, 1);
+        ctx.save();
+        ctx.globalAlpha = easeOut(a);
+        roundRect(ctx, cx - cardW/2, y, cardW, cardH, 12);
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fill();
+        ctx.strokeStyle = card.color + '80';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = card.color;
+        ctx.shadowBlur = 12 * a;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        drawText(ctx, card.title, cx - cardW/2 + 20, y + 28, { font: 'bold 17px ' + getComputedStyle(document.body).fontFamily, color: card.color });
+        drawText(ctx, card.desc, cx - cardW/2 + 20, y + 62, { maxWidth: cardW - 40, font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#c5c6c7', lineHeight: 22 });
+        ctx.restore();
+      });
+    }
+
+    // ===== Step 8: Playground =====
+    function renderStep8(ctx, t) {
+      const cx = app.width / 2;
+      const layerCount = Math.max(3, Math.min(12, Math.floor(app.params.layerCount)));
+      const blockSize = Math.max(2, Math.min(6, Math.floor(app.params.blockSize)));
+      const { layerH, gap, totalH, startY } = fitLayers(layerCount, 70);
+      const boxW = Math.min(320, app.width - 80);
+      const blocks = Math.ceil(layerCount / blockSize);
+      const blockColors = ['rgba(245,166,35,', 'rgba(102,252,241,', 'rgba(176,132,255,', 'rgba(92,245,163,'];
+
+      drawText(ctx, 'Playground：自由搭建 Attention Residuals', cx, Math.max(16, app.height * 0.04), { align: 'center', baseline: 'top', font: 'bold 18px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+
+      const hovered = app.hovered && app.hovered.type === 'playLayer' ? app.hovered.idx : -1;
+
+      for (let i = 0; i < layerCount; i++) {
+        const y = startY + i * (layerH + gap);
+        const b = Math.floor(i / blockSize);
+        const isHovered = i === hovered;
+
+        if (isHovered && i > 0) {
+          // draw attention lines to previous block boundaries / current block partial
+          for (let j = 0; j < i; j++) {
+            const isBlockBoundary = ((j+1) % blockSize === 0) || j === i-1;
+            if (!isBlockBoundary) continue;
+            const yj = startY + j * (layerH + gap) + layerH/2;
+            const weight = 1 - (i - j - 1) * 0.15;
+            ctx.save();
+            ctx.globalAlpha = clamp(weight, 0.3, 1);
+            ctx.strokeStyle = '#f5a623';
+            ctx.lineWidth = 1.5 + weight * 3;
+            ctx.beginPath();
+            ctx.moveTo(cx - boxW/2 + 16, yj);
+            ctx.quadraticCurveTo(cx - boxW/2 - 35 - weight*12, (yj + y + layerH/2)/2, cx - boxW/2 + 16, y + layerH/2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        ctx.save();
+        roundRect(ctx, cx - boxW/2, y, boxW, layerH, 6);
+        ctx.fillStyle = blockColors[b % blockColors.length] + (isHovered ? '0.22)' : '0.10)');
+        ctx.fill();
+        ctx.strokeStyle = blockColors[b % blockColors.length] + (isHovered ? '1)' : '0.6)');
+        ctx.lineWidth = isHovered ? 2.5 : 1.2;
+        ctx.stroke();
+        drawText(ctx, `层 ${i+1}`, cx - boxW/2 + 16, y + layerH/2, { font: 'bold 12px ' + getComputedStyle(document.body).fontFamily, color: '#fff' });
+        if (isHovered) {
+          drawText(ctx, '检索 Block 边界 + 当前块内部分和', cx + boxW/2 - 14, y + layerH/2, { align: 'right', font: '12px ' + getComputedStyle(document.body).fontFamily, color: '#f5a623' });
+        }
+        ctx.restore();
+      }
+
+      // stats
+      ctx.save();
+      ctx.globalAlpha = t;
+      drawText(ctx, `层数: ${layerCount} · 块大小: ${blockSize} · 块数: ${blocks}`, cx, startY + totalH + 16, { align: 'center', baseline: 'top', font: '14px ' + getComputedStyle(document.body).fontFamily, color: '#8d99ae' });
+      ctx.restore();
+    }
+
+    // ===== Step Definitions =====
+    app.steps = [
+      {
+        title: '问题：深层网络会丢失早期信息',
+        tag: 'Step 1 / 8',
+        body: '标准 Transformer 的残差连接像「传话游戏」：每层只在上层基础上加一点点修改。传得越深，最初的关键信息越模糊。',
+        formula: 'h_l = h_{l-1} + f_l(h_{l-1})',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>网络层数</span><span id="val-layerCount">6</span></div><input type="range" min="3" max="8" value="6" oninput="app.setParam('layerCount', this.value); $('val-layerCount').textContent=this.value;"></div>
+          <div class="slider-group"><div class="slider-label"><span>信息稀释速度</span><span id="val-dilution">中</span></div><input type="range" min="0.2" max="0.8" step="0.1" value="0.5" oninput="app.setParam('dilution', this.value); $('val-dilution').textContent=this.value<0.35?'慢':this.value<0.65?'中':'快';"></div>
+        `,
+        render: renderStep1,
+      },
+      {
+        title: '回顾：注意力在序列维度上工作',
+        tag: 'Step 2 / 8',
+        body: '在标准 Transformer 里，Attention 是「横向」的：当前 token 会看前面相关的 token，按重要性加权。点击或悬停某个词，观察它关注谁。',
+        formula: 'o_t = Σ α_{ts} · x_s',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>当前 Query Token</span><span id="val-token">会议</span></div><input type="range" min="0" max="7" value="2" oninput="app.setParam('tokenIdx', this.value); $('val-token').textContent=app.tokens[this.value];"></div>
+        `,
+        render: renderStep2,
+      },
+      {
+        title: '关键转身：把 Attention 转到深度维度',
+        tag: 'Step 3 / 8',
+        body: 'Attention Residuals 做了一件很直觉的事：既然 token 之间能互相看，那「层」之间为什么不能互相看？于是注意力从横向的序列维度，转到了纵向的深度维度。',
+        controls: '',
+        render: renderStep3,
+      },
+      {
+        title: 'Attention Residuals：层与层之间的注意力',
+        tag: 'Step 4 / 8',
+        body: '现在，每一层都能直接「看」到它前面所有层的输出，并选择性地加权组合。早期信息不再依赖残差流慢慢渗透。',
+        formula: 'h_l = Σ_{i<l} α_{l,i} · h_i',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>观察第几层</span><span id="val-layer">4</span></div><input type="range" min="1" max="5" value="3" oninput="app.setParam('layerIdx', this.value); $('val-layer').textContent=parseInt(this.value)+1;"></div>
+        `,
+        render: renderStep4,
+      },
+      {
+        title: 'Query 是学出来的检索意图',
+        tag: 'Step 5 / 8',
+        body: '和标准 attention 不同，这里的 Query 不是从当前输入 token 算出来的，而是每一层在训练中学到的一个参数向量。它决定了这一层「想从前面层里检索什么」。',
+        formula: 'q_l = w_l    ( learned )',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>切换层的 Query</span><span id="val-layer2">4</span></div><input type="range" min="1" max="4" value="3" oninput="app.setParam('layerIdx', this.value); $('val-layer2').textContent=parseInt(this.value)+1;"></div>
+        `,
+        render: renderStep5,
+      },
+      {
+        title: 'Block Attention Residuals：分块降低成本',
+        tag: 'Step 6 / 8',
+        body: '如果每层都检索前面所有层，通信量会爆炸。Kimi K3 把层分成 Block，只检索已完成的块和当前块内的部分和，将开销从 O(L²) 降到 O(N·d)。',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>每块层数</span><span id="val-block">3</span></div><input type="range" min="2" max="4" value="3" oninput="app.setParam('blockSize', this.value); $('val-block').textContent=this.value;"></div>
+        `,
+        render: renderStep6,
+      },
+      {
+        title: '核心收益',
+        tag: 'Step 7 / 8',
+        body: 'Attention Residuals 让深层网络在保留早期关键信息的同时，保持训练稳定和高效扩展。',
+        controls: '',
+        render: renderStep7,
+      },
+      {
+        title: 'Playground',
+        tag: 'Step 8 / 8',
+        body: '自由调整层数和块大小，观察 Block Attention Residuals 的检索范围。悬停某一层，看它会从哪些位置获取信息。',
+        controls: `
+          <div class="slider-group"><div class="slider-label"><span>总层数</span><span id="val-play-layer">6</span></div><input type="range" min="3" max="12" value="6" oninput="app.setParam('layerCount', this.value); $('val-play-layer').textContent=this.value;"></div>
+          <div class="slider-group"><div class="slider-label"><span>块大小</span><span id="val-play-block">3</span></div><input type="range" min="2" max="6" value="3" oninput="app.setParam('blockSize', this.value); $('val-play-block').textContent=this.value;"></div>
+        `,
+        render: renderStep8,
+      },
+    ];
+
+    // ===== Update UI =====
+    function updateUI() {
+      const step = app.steps[app.step] || app.steps[0];
+      const content = $('content');
+      const controls = $('controls');
+      const progress = $('progress');
+
+      if (app.step === -1) {
+        $('startScreen').classList.remove('hidden');
+        content.innerHTML = '<div class="tag">Start</div><h1>准备好了吗？</h1><p>我们将通过 8 个交互步骤，从「传话游戏」讲起，一步步理解 Kimi K3 的 Attention Residuals 机制。</p>';
+        controls.innerHTML = '<div class="btn-row"><button class="btn-secondary" disabled>上一步</button><button class="btn-primary" onclick="app.next()">开始交互讲解</button></div>';
+        progress.innerHTML = Array.from({length: app.totalSteps}, (_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('');
+        return;
+      }
+
+      $('startScreen').classList.add('hidden');
+      content.innerHTML = `
+        <div class="tag">${step.tag}</div>
+        <h1>${step.title}</h1>
+        <p>${step.body}</p>
+        ${step.formula ? `<div class="formula">${step.formula}</div>` : ''}
+      `;
+
+      const prevDisabled = app.step <= 0 ? 'disabled' : '';
+      controls.innerHTML = `
+        <div class="btn-row">
+          <button class="btn-secondary" id="btnPrev" onclick="app.prev()" ${prevDisabled}>上一步</button>
+          <button class="btn-primary" id="btnNext" onclick="app.next()">${app.step === app.steps.length - 1 ? '重新播放' : '下一步'}</button>
+        </div>
+        ${step.controls}
+      `;
+
+      progress.innerHTML = Array.from({length: app.totalSteps}, (_, i) => {
+        if (i === app.step) return '<div class="dot active"></div>';
+        if (i < app.step) return '<div class="dot visited"></div>';
+        return '<div class="dot"></div>';
+      }).join('');
+    }
+
+    // ===== Interaction =====
+    app.next = function() {
+      if (app.step === app.steps.length - 1) {
+        app.step = 0;
+        app.anim = 0;
+      } else {
+        app.step++;
+        app.anim = 0;
+      }
+      updateUI();
+    };
+    app.prev = function() {
+      if (app.step > 0) {
+        app.step--;
+        app.anim = 0;
+        updateUI();
+      }
+    };
+    app.setParam = function(key, value) {
+      app.params[key] = parseFloat(value);
+    };
+
+    // ===== Canvas Interaction =====
+    function hitTest(x, y) {
+      if (app.step <= 0) return null;
+      const cx = app.width / 2;
+      if (app.step === 2) {
+        const tokens = app.tokens.slice(0, 8);
+        const totalW = Math.min(app.width - 40, tokens.length * 72);
+        const startX = cx - totalW / 2;
+        const tokenW = totalW / tokens.length;
+        const ty = app.height / 2 + 20;
+        for (let i = 0; i < tokens.length; i++) {
+          const tx = startX + i * tokenW + tokenW/2;
+          if (Math.abs(x - tx) < tokenW/2 - 4 && Math.abs(y - ty) < 26) return { type: 'token', idx: i };
+        }
+        return null;
+      }
+      if ([1,4,5,6,8].includes(app.step)) {
+        let layerCount, layerH, gap, totalH, startY, boxW;
+        if (app.step === 1) {
+          layerCount = Math.max(3, Math.min(8, Math.floor(app.params.layerCount)));
+          const unit = (app.height - 134) / layerCount;
+          layerH = unit * 0.62;
+          gap = unit * 0.38;
+          totalH = layerCount * unit - gap;
+          startY = 86;
+          boxW = Math.min(420, app.width - 60);
+        } else if (app.step === 6) {
+          layerCount = 8;
+          ({ layerH, gap, totalH, startY } = fitLayers(layerCount, 72));
+          boxW = Math.min(300, app.width - 90);
+        } else if (app.step === 8) {
+          layerCount = Math.max(3, Math.min(12, Math.floor(app.params.layerCount)));
+          ({ layerH, gap, totalH, startY } = fitLayers(layerCount, 70));
+          boxW = Math.min(320, app.width - 80);
+        } else {
+          layerCount = app.step === 4 ? 6 : 5;
+          ({ layerH, gap, totalH, startY } = fitLayers(layerCount, 70));
+          boxW = Math.min(300, app.width - 80);
+        }
+        for (let i = 0; i < layerCount; i++) {
+          const ly = startY + i * (layerH + gap);
+          if (x > cx - boxW/2 && x < cx + boxW/2 && y > ly && y < ly + layerH) {
+            return { type: app.step === 8 ? 'playLayer' : 'layer', idx: i };
+          }
+        }
+      }
+      return null;
+    }
+
+    app.canvas.addEventListener('mousemove', (e) => {
+      const rect = app.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const hit = hitTest(x, y);
+      app.hovered = hit;
+      if (hit) {
+        if (hit.type === 'token') showTooltip(e.clientX - rect.left, e.clientY - rect.top, `Token: <b>${app.tokens[hit.idx]}</b><br>看它的 attention 权重`);
+        else if (hit.type === 'layer' || hit.type === 'playLayer') showTooltip(e.clientX - rect.left, e.clientY - rect.top, `层 ${hit.idx+1}<br>点击查看它从哪些层获取信息`);
+        else showTooltip(e.clientX - rect.left, e.clientY - rect.top, '点击或悬停查看细节');
+      } else {
+        hideTooltip();
+      }
+    });
+    app.canvas.addEventListener('mouseleave', () => { app.hovered = null; hideTooltip(); });
+    app.canvas.addEventListener('click', (e) => {
+      const rect = app.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const hit = hitTest(x, y);
+      if (!hit) return;
+      if (hit.type === 'token') {
+        app.params.tokenIdx = hit.idx;
+        updateUI();
+      } else if (hit.type === 'layer' || hit.type === 'playLayer') {
+        app.params.layerIdx = hit.idx;
+        updateUI();
+      }
+    });
+
+    // ===== Keyboard =====
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') app.next();
+      if (e.key === 'ArrowLeft') app.prev();
+    });
+
+    // ===== Animation Loop =====
+    function frame(now) {
+      const dt = Math.min((now - app.lastTime) / 1000, 0.05);
+      app.lastTime = now;
+      if (app.anim < 1) app.anim = clamp(app.anim + dt * 0.8 * app.params.playSpeed, 0, 1);
+
+      const ctx = app.ctx;
+      clear(ctx);
+
+      if (app.step >= 0 && app.steps[app.step] && app.steps[app.step].render) {
+        app.steps[app.step].render(ctx, app.anim);
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    // ===== Init =====
+    app.step = -1;
+    updateUI();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
